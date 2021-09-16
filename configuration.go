@@ -65,9 +65,10 @@ func (c *Configuration) UpdateConfig(newConfig *Configuration) {
 	c.LogConfigRequired = newConfig.LogConfigRequired
 }
 
+var Config = Configuration{}
 var oldConfig = Configuration{}
 
-func GetConfiguration() *Configuration {
+func LoadConfiguration() {
 	conf := Configuration{}
 	if _, err := os.Stat("config.yaml"); err != nil {
 		zap.S().Error("config file doesn't exist, using defaults")
@@ -88,6 +89,6 @@ func GetConfiguration() *Configuration {
 
 	yaml.Unmarshal(configFileContent, &conf)
 	conf.ConfigChanged = true
-	return &conf
-
+	oldConfig.UpdateConfig(&conf)
+	Config.UpdateConfig(&conf)
 }
