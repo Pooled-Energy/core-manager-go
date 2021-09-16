@@ -1,9 +1,8 @@
 package main
 
 import (
-	"bytes"
+	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 
@@ -55,38 +54,47 @@ var modems = [...]VendorModem{
 	},
 }
 
-func GetHardwareProfile() *Profile {
+//zap.S().Error("No system.yaml file found")
+//zap.S().Error("There was an error reading the existing profile yaml, error: %v", err)
+func GetHardwareProfile() (*Profile, error) {
 	// First we want to load the old hardware profile if we have it saved
-	var hardwareProfile = loadHardwareProfile()
+	hardwareProfile := Profile{}
+	var oldHardwareProfile, err = loadHardwareProfile()
+	if err != nil {
+		zap.S().Error("unable to load system.yaml, error: %q", err)
+	}
 
 	zap.S().Info("Begin system network hardware profile construction")
 
 	zap.S().Info("Modem Vendor Name:")
-	identifyVendorName(hardwareProfile)
+	err = identifyVendorName(&hardwareProfile)
+	if err != nil {
+		return nil, fmt.Errorf("error getting vendor name, %v", err)
+	}
 
 	zap.S().Info("Turning off modem echo")
 	turnOffEcho()
 
 	zap.S().Info("Get product name")
-	identifyProductName(hardwareProfile)
+	identifyProductName(&hardwareProfile)
 
 	zap.S().Info("Get Vendor ID and Product ID")
-	identifyUsbVIDAndPID(hardwareProfile)
+	identifyUsbVIDAndPID(&hardwareProfile)
 
 	zap.S().Info("Get IEMI")
-	identifyIEMI(hardwareProfile)
+	identifyIEMI(&hardwareProfile)
 
 	zap.S().Info("Get Firmware Version Number")
-	identifyFirmwareVersion(hardwareProfile)
+	identifyFirmwareVersion(&hardwareProfile)
 
 	zap.S().Info("Get ICCID")
-	identifyIccid(hardwareProfile)
+	identifyIccid(&hardwareProfile)
 
 	zap.S().Info("Get OS information")
-	identifyOS(hardwareProfile)
+	identifyOS(&hardwareProfile)
 
 	zap.S().Info("Get board information")
-	identifyBoard(hardwareProfile)
+	identifyBoard(&hardwareProfile)
 
 	zap.S().Info("=============================================================")
 	zap.S().Info("Hardware Profile Report")
@@ -94,28 +102,34 @@ func GetHardwareProfile() *Profile {
 	zap.S().Info("=============================================================")
 	zap.S().Info("")
 
-	return hardwareProfile
-}
-
-func loadHardwareProfile() *Profile {
-	var hardwareProfile Profile
-	if _, err := os.Stat("system.yaml"); err == nil {
-		data, err := os.ReadFile("system.yaml")
-		if err != nil {
-			zap.S().Error("No system.yaml file found")
-			return nil
-		}
-		err = yaml.Unmarshal(data, &hardwareProfile)
-		if err != nil {
-			zap.S().Error("There was an error reading the existing profile yaml, error: %v", err)
-		}
+	if hardwareProfile != oldHardwareProfile {
+		zap.S().Info("system setup has changed")
 	}
 
 	return &hardwareProfile
 }
 
-func identifyVendorName(hardwareProfile *Profile) {
-	usbDevcies := runShellCommand("lsusb")
+func loadHardwareProfile() (Profile, error) {
+	var hardwareProfile Profile
+	if _, err := os.Stat("system.yaml"); err == nil {
+		data, err := os.ReadFile("system.yaml")
+		if err != nil {
+			return Profile{}, err
+		}
+		err = yaml.Unmarshal(data, &hardwareProfile)
+		if err != nil {
+			return Profile{}, err
+		}
+	}
+
+	return hardwareProfile, nil
+}
+
+func identifyVendorName(hardwareProfile *Profile) error {
+	usbDevcies, err := RunShellCommand("lsusb")
+	if err != nil {
+		return fmt.Errorf("modem vendor could not be found, error %v", err)
+	}
 
 	for _, value := range modems {
 		if strings.Contains(usbDevcies, value.VID) {
@@ -124,7 +138,7 @@ func identifyVendorName(hardwareProfile *Profile) {
 	}
 
 	if hardwareProfile.ModemVendor == "" {
-		zap.S().Warn("Modem vendor could not be found")
+		return fmt.Errorf("modem vendor was not present")
 	}
 }
 
@@ -260,16 +274,4 @@ func saveHardwareProfile(hardwareProfile *Profile) {
 	}
 
 	os.WriteFile("system.yaml", systemConfig, 0644)
-}
-
-func runShellCommand(command string, arguments ...string) string {
-	cmd := exec.Command(command, arguments...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		zap.S().Error("There was an issue: %v", err)
-	}
-
-	return out.String()
 }
