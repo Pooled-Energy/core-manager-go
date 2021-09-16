@@ -64,16 +64,19 @@ func GetHardwareProfile() (*Profile, error) {
 		zap.S().Error("unable to load system.yaml, error: %q", err)
 	}
 
-	zap.S().Info("Begin system network hardware profile construction")
+	zap.S().Info("begin system network hardware profile construction")
 
-	zap.S().Info("Modem Vendor Name:")
+	zap.S().Info("modem Vendor Name:")
 	err = identifyVendorName(&hardwareProfile)
 	if err != nil {
 		return nil, fmt.Errorf("error getting vendor name, %v", err)
 	}
 
-	zap.S().Info("Turning off modem echo")
-	turnOffEcho()
+	zap.S().Info("Ttrning off modem echo")
+	err = turnOffEcho()
+	if err != nil {
+		return nil, err
+	}
 
 	zap.S().Info("Get product name")
 	identifyProductName(&hardwareProfile)
@@ -142,7 +145,7 @@ func identifyVendorName(hardwareProfile *Profile) error {
 	}
 }
 
-func turnOffEcho() {
+func turnOffEcho() error {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		panic(err)
@@ -151,10 +154,12 @@ func turnOffEcho() {
 
 	var result string
 	dbusObject := conn.Object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1/Modem/0")
-	dBusMethodCallResult := dbusObject.Call("org.freedesktop.ModemManager1.Modem.Command", 0, "ATE0", uint32(30)).Store(result)
-	if dBusMethodCallResult != nil {
-		panic(dBusMethodCallResult)
+	err = dbusObject.Call("org.freedesktop.ModemManager1.Modem.Command", 0, "ATE0", uint32(30)).Store(result)
+	if err != nil {
+		return fmt.Errorf("issue contacting the modem via modem manager, error: %v", err)
 	}
+
+	return nil
 }
 
 // TODO: We can combine anything which involves a lsusb call into one
