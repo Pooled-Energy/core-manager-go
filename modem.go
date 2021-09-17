@@ -306,3 +306,20 @@ func (m *Modem) CheckSimReady() error {
 	zap.S().Info("SIM is ready!")
 	return nil
 }
+
+func (m *Modem) CheckNetwork() error {
+	zap.S().Info("checking the network is ready...")
+
+	output, err := RunModemManagerCommand("AT+CREG?")
+	if err != nil {
+		return fmt.Errorf("an error occured when checking network status, error: %v", err)
+	}
+
+	if !strings.Contains(output, "+CREG: 0,1") || !strings.Contains(output, "+CREG: 0,5") {
+		return fmt.Errorf("network registration failed, output %s", output)
+	}
+
+	zap.S().Info("network is registered")
+
+	return nil
+}
