@@ -64,31 +64,43 @@ func GetHardwareProfile() (*Profile, error) {
 		zap.S().Error("unable to load system.yaml, error: %q", err)
 	}
 
-	zap.S().Info("begin system network hardware profile construction")
+	zap.S().Info("[?] begin system network hardware profile construction")
 
-	zap.S().Info("modem Vendor Name:")
+	zap.S().Info("[+] modem vendor vame:")
 	err = identifyVendorName(&hardwareProfile)
 	if err != nil {
 		return nil, fmt.Errorf("error getting vendor name, %v", err)
 	}
 
-	zap.S().Info("Ttrning off modem echo")
+	zap.S().Info("[+] turning off modem echo")
 	err = turnOffEcho()
 	if err != nil {
 		return nil, err
 	}
 
-	zap.S().Info("Get product name")
-	identifyProductName(&hardwareProfile)
+	zap.S().Info("[+] get product name")
+	err = identifyProductName(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
-	zap.S().Info("Get Vendor ID and Product ID")
-	identifyUsbVIDAndPID(&hardwareProfile)
+	zap.S().Info("[+] get vendor id and product id")
+	err = identifyUsbVendorAndProductId(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
-	zap.S().Info("Get IEMI")
-	identifyIEMI(&hardwareProfile)
+	zap.S().Info("[+] get IEMI")
+	err = identifyIEMI(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
-	zap.S().Info("Get Firmware Version Number")
-	identifyFirmwareVersion(&hardwareProfile)
+	zap.S().Info("[+] get firmware version number")
+	err = identifyFirmwareVersion(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
 	zap.S().Info("Get ICCID")
 	identifyIccid(&hardwareProfile)
@@ -129,13 +141,13 @@ func loadHardwareProfile() (Profile, error) {
 }
 
 func identifyVendorName(hardwareProfile *Profile) error {
-	usbDevcies, err := RunShellCommand("lsusb")
+	usbDevices, err := RunShellCommand("lsusb")
 	if err != nil {
 		return fmt.Errorf("modem vendor could not be found, error %v", err)
 	}
 
 	for _, value := range modems {
-		if strings.Contains(usbDevcies, value.VID) {
+		if strings.Contains(usbDevices, value.VID) {
 			hardwareProfile.ModemVendor = value.Name
 		}
 	}
@@ -163,24 +175,39 @@ func turnOffEcho() error {
 }
 
 // TODO: We can combine anything which involves a lsusb call into one
-func identifyProductName(hardwareProfile *Profile) {
-	usbDevcies := runShellCommand("lsusb")
+func identifyProductName(hardwareProfile *Profile) error {
+	usbDevices, err := RunShellCommand("lsusb")
+	if err != nil {
+		return fmt.Errorf("product name could not be found, error %v", err)
+	}
 
 	for _, value := range modems {
 		for modemName, id := range value.Modules {
-			if strings.Contains(usbDevcies, id) {
+			if strings.Contains(usbDevices, id) {
 				hardwareProfile.ModemName = strings.Split(modemName, "_")[0]
 			}
 		}
 	}
 
-	if hardwareProfile.ModemVendor == "" {
-		zap.S().Warn("Modem name could not be found")
+	deviceNumber, err := RunModemManagerCommand("AT+GMM")
+	if err != nil {
+		return fmt.Errorf("product name could not be found, error %v", err)
 	}
+
+	hardwareProfile.ModemName = fmt.Sprintf("%s %s", hardwareProfile.ModemName, deviceNumber)
+
+	if hardwareProfile.ModemVendor == "" {
+		return fmt.Errorf("product name could not be found")
+	}
+
+	return nil
 }
 
-func identifyUsbVIDAndPID(hardwareProfile *Profile) {
-	usbDevices := runShellCommand("lsusb")
+func identifyUsbVendorAndProductId(hardwareProfile *Profile) error {
+	usbDevices, err := RunShellCommand("lsusb")
+	if err != nil {
+		return fmt.Errorf("vendor or product id could not be found, error %v", err)
+	}
 
 	for _, value := range modems {
 		if strings.Contains(usbDevices, value.VID) {
@@ -197,46 +224,36 @@ func identifyUsbVIDAndPID(hardwareProfile *Profile) {
 	}
 
 	if hardwareProfile.ModemVendorId == "" {
-		zap.S().Warn("ModemVendorId could not be found")
+		return fmt.Errorf("modem vendor id could not be found")
 	}
 
 	if hardwareProfile.ModemProductId == "" {
-		zap.S().Warn("ModemProductId could not be found")
+		return fmt.Errorf("modem product id could not be found")
 	}
+
+	return nil
 }
 
-func identifyIEMI(hardwareProfile *Profile) {
-	conn, err := dbus.ConnectSystemBus()
+func identifyIEMI(hardwareProfile *Profile) error {
+	iemi, err := RunModemManagerCommand("AT+CGSN")
 	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
-	var result string
-	dbusObject := conn.Object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1/Modem/0")
-	dBusMethodCallResult := dbusObject.Call("org.freedesktop.ModemManager1.Modem.Command", 0, "AT+CGSN", uint32(30)).Store(result)
-	if dBusMethodCallResult != nil {
-		zap.S().Warn("Unable to get IEMI from modem, response: %s", result)
+		return fmt.Errorf("iemi could not be found, error %v", err)
 	}
 
-	hardwareProfile.IMEI = result
+	hardwareProfile.IMEI = iemi
+
+	return nil
 }
 
-func identifyFirmwareVersion(hardwareProfile *Profile) {
-	conn, err := dbus.ConnectSystemBus()
+func identifyFirmwareVersion(hardwareProfile *Profile) error {
+	softwareVersion, err := RunModemManagerCommand("AT+CGMR")
 	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
-	var result string
-	dbusObject := conn.Object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1/Modem/0")
-	dBusMethodCallResult := dbusObject.Call("org.freedesktop.ModemManager1.Modem.Command", 0, "AT+CGMR", uint32(30)).Store(result)
-	if dBusMethodCallResult != nil {
-		zap.S().Warn("Unable to get firmware version from modem, response: %s", result)
+		return fmt.Errorf("software version could not be found, error %v", err)
 	}
 
-	hardwareProfile.SoftwareVersion = result
+	hardwareProfile.SoftwareVersion = softwareVersion
+
+	return nil
 }
 
 func identifyIccid(hardwareProfile *Profile) {
