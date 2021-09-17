@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"math/bits"
 	"os"
 	"runtime"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
 	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v2"
 )
 
@@ -102,17 +104,28 @@ func GetHardwareProfile() (*Profile, error) {
 		return nil, err
 	}
 
-	zap.S().Info("Get ICCID")
-	identifyIccid(&hardwareProfile)
+	zap.S().Info("[+] get ICCID")
+	err = identifyIccid(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
-	zap.S().Info("Get OS information")
-	identifyOS(&hardwareProfile)
+	zap.S().Info("[+] get OS information")
+	err = identifyOS(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
-	zap.S().Info("Get board information")
-	identifyBoard(&hardwareProfile)
+	zap.S().Info("[+] get board information")
+	err = identifyBoard(&hardwareProfile)
+	if err != nil {
+		return nil, err
+	}
 
+	zap.S().Info("")
 	zap.S().Info("=============================================================")
-	zap.S().Info("Hardware Profile Report")
+	zap.S().Info("[?] Hardware Profile Report")
+	zap.S().Info("---------------------------")
 	zap.S().Info("%v+", hardwareProfile)
 	zap.S().Info("=============================================================")
 	zap.S().Info("")
@@ -121,7 +134,7 @@ func GetHardwareProfile() (*Profile, error) {
 		zap.S().Info("system setup has changed")
 	}
 
-	return &hardwareProfile
+	return &hardwareProfile, nil
 }
 
 func loadHardwareProfile() (Profile, error) {
@@ -155,6 +168,8 @@ func identifyVendorName(hardwareProfile *Profile) error {
 	if hardwareProfile.ModemVendor == "" {
 		return fmt.Errorf("modem vendor was not present")
 	}
+
+	return nil
 }
 
 func turnOffEcho() error {
@@ -242,6 +257,10 @@ func identifyIEMI(hardwareProfile *Profile) error {
 
 	hardwareProfile.IMEI = iemi
 
+	if hardwareProfile.IMEI == "" {
+		return fmt.Errorf("iemi could not be found, error %v", err)
+	}
+
 	return nil
 }
 
@@ -253,47 +272,65 @@ func identifyFirmwareVersion(hardwareProfile *Profile) error {
 
 	hardwareProfile.SoftwareVersion = softwareVersion
 
+	if hardwareProfile.SoftwareVersion == "" {
+		return fmt.Errorf("software version could not be found, error %v", err)
+	}
+
 	return nil
 }
 
-func identifyIccid(hardwareProfile *Profile) {
-	conn, err := dbus.ConnectSystemBus()
+func identifyIccid(hardwareProfile *Profile) error {
+	iccid, err := RunModemManagerCommand("AT+ICCID")
 	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
-	var result string
-	dbusObject := conn.Object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1/Modem/0")
-	dBusMethodCallResult := dbusObject.Call("org.freedesktop.ModemManager1.Modem.Command", 0, "AT+ICCID", uint32(30)).Store(result)
-	if dBusMethodCallResult != nil {
-		zap.S().Warn("Unable to get ICCID from modem, response: %s", result)
+		return fmt.Errorf("iccid could not be found, error %v", err)
 	}
 
-	hardwareProfile.ICCID = result
+	hardwareProfile.ICCID = iccid
+
+	if hardwareProfile.ICCID == "" {
+		return fmt.Errorf("iccid could not be found, error %v", err)
+	}
+
+	return nil
 }
 
-func identifyOS(hardwareProfile *Profile) {
-	// TODO
+func identifyOS(hardwareProfile *Profile) error {
+	utsname := unix.Utsname{}
+	if err := unix.Uname(utsname); err != nil {
+		return fmt.Errorf("could not gather OS information, error %v", err)
+	}
 
-	hardwareProfile.Architecture = runtime.GOARCH
+	hardwareProfile.Architecture = string(bits.UintSize)
+	hardwareProfile.Machine = string(utsname.Machine)
+	hardwareProfile.Kernel = string(utsname.Release)
+	hardwareProfile.Hostname = string(utsname.Nodename)
+	hardwareProfile.Platform = runtime.GOOS
 
+	return nil
 }
 
-func identifyBoard(hardwareProfile *Profile) {
-	board := runShellCommand("cat /sys/firmware/devicetree/base/model")
+func identifyBoard(hardwareProfile *Profile) error {
+	board, err := RunShellCommand("cat /sys/firmware/devicetree/base/model")
+	if err != nil {
+		return fmt.Errorf("board could not be found, error %v", err)
+	}
+
 	hardwareProfile.Board = board
 
 	if board == "" {
-		zap.S().Warn("ModemProductId could not be found")
+		return fmt.Errorf("board could not be found, error %v", err)
 	}
+
+	return nil
 }
 
-func saveHardwareProfile(hardwareProfile *Profile) {
+func saveHardwareProfile(hardwareProfile *Profile) error {
 	systemConfig, err := yaml.Marshal(&hardwareProfile)
 	if err != nil {
-		zap.S().Error("Error parsing hardware profile, err: %v", err)
+		return fmt.Errorf("Error parsing hardware profile, err: %v", err)
 	}
 
 	os.WriteFile("system.yaml", systemConfig, 0644)
+
+	return nil
 }
