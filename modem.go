@@ -534,3 +534,56 @@ func (m *Modem) Diagnose(diagnosisType int) error {
 
 	return nil
 }
+
+func (m *Modem) ResetConnectionInterface() error {
+	down := fmt.Sprintf("sudo ip link set dev %s down", m.InterfaceName)
+	up := fmt.Sprintf("sudo ip link set dev %s up", m.InterfaceName)
+
+	zap.S().Info("resetting connection interface...")
+	_, err := RunShellCommand(down)
+	if err != nil {
+		return fmt.Errorf("error bringing interface down, error: %v", err)
+	}
+	zap.S().Info("interface %s is down", m.InterfaceName)
+
+	time.Sleep(5 * time.Second)
+
+	_, err = RunShellCommand(up)
+	if err != nil {
+		return fmt.Errorf("error bringing interface up, error: %v", err)
+	}
+	zap.S().Info("interface %s is up", m.InterfaceName)
+
+	err = checkifModemInterfaceIsUp(m)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkifModemInterfaceIsUp(modem *Modem) error {
+	counter := 0
+	zap.S().Debug("interface name: %s", modem.InterfaceName)
+	for i := 0; i < 20; i++ {
+		output, err := RunShellCommand("route -n")
+		if err != nil {
+			zap.S().Error("error trying to get modem interface data, error: %v", err)
+		}
+		if strings.Contains(output, modem.InterfaceName) {
+			zap.S().Info("modem interface detected")
+			counter = 0
+			break
+		} else {
+			time.Sleep(1 * time.Second)
+			counter += 1
+			fmt.Println(string(counter) + " attempts to get ensure modem is up")
+		}
+	}
+
+	if counter != 0 {
+		return fmt.Errorf("modem interface couldn't be detected")
+	}
+
+	return nil
+}

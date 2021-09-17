@@ -150,8 +150,20 @@ func diagnose() {
 	conductor.IsOk = true
 }
 
+func resetConnectionInterface() {
+	conductor.SetStep(0, 7, 8, 9, 1, false, 2)
+
+	err := networkModem.ResetConnectionInterface()
+	if err != nil {
+		zap.S().Error("error occured during connection interface reset, error: %v", err)
+		conductor.IsOk = false
+	}
+
+	conductor.IsOk = true
+}
+
 var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM,
-	diagnose}
+	diagnose, resetConnectionInterface}
 
 func ExecuteStep(step int) {
 	actions[step]()
