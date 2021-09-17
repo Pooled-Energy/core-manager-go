@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,8 +35,8 @@ func (d *DiagnosticProperties) SetDefaults() {
 }
 
 type MonitoringProperties struct {
-	CellularConnection string
-	CellularLatency    string
+	CellularConnection bool
+	CellularLatency    int
 	FixedIncident      int
 }
 
@@ -380,4 +381,40 @@ func (m *Modem) InitiateECM() error {
 	}
 
 	return fmt.Errorf("ECM initiation timeout")
+}
+
+func (m *Modem) CheckInternet() error {
+	latency, err := checkInterfaceHealth(m.InterfaceName, config.PingTimeout)
+	if err != nil {
+		m.MonitoringProperties.CellularConnection = false
+		m.MonitoringProperties.CellularLatency = 0
+		return fmt.Errorf("error checking internet connection, error: %v", err)
+	}
+
+	m.MonitoringProperties.CellularConnection = true
+	m.MonitoringProperties.CellularLatency = latency
+	return nil
+
+}
+
+func checkInterfaceHealth(interfaceName string, pingTimeout int) (int, error) {
+	pingResult, err := RunShellCommand(fmt.Sprintf("ping -1 -c 1 -s 8 -w %s -I %s 8.8.8.8", string(pingTimeout), interfaceName))
+	if err != nil {
+		return 0, fmt.Errorf("no internet, error: %v", err)
+	}
+
+	pingLatencies := parsePingOutput(pingResult, "min/avg/max/mdev =", "ms")
+	latenciesValues, err := strconv.ParseFloat(strings.Split(pingLatencies, "/")[0], 32)
+	if err != nil {
+		return 0, fmt.Errorf("issue converting ping data to numeric, error: %v", err)
+	}
+	return int(latenciesValues), nil
+}
+
+func parsePingOutput(output, header, end string) string {
+	header += " "
+	headerSize := len(header)
+	indexOfData := strings.Index(output, header) + headerSize
+	endOfData := indexOfData + strings.Index(output[indexOfData:], end)
+	return output[indexOfData:endOfData]
 }

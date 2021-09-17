@@ -100,6 +100,22 @@ func initiateECM() {
 	conductor.IsOk = true
 }
 
+func checkInternet() {
+	switch conductor.Sub {
+	case 5:
+		conductor.SetStep(0, 5, 5, 6, float32(config.CheckInternetInterval), false, 1)
+	case 8:
+		conductor.SetStep(0, 8, 5, 9, 10, false, 0)
+	case 10:
+		conductor.SetStep(0, 10, 5, 11, 10, false, 0)
+	}
+
+	err := networkModem.CheckInternet()
+	if err != nil {
+
+	}
+}
+
 var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM}
 
 func ExecuteStep(step int) {
