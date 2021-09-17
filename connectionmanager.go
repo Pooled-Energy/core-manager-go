@@ -124,7 +124,34 @@ func checkInternet() {
 	conductor.IsOk = true
 }
 
-var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM}
+func diagnose() {
+	networkModem.MonitoringProperties.CellularConnection = false
+	networkModem.IncidentFlag = true
+	diagnosisType := 0
+
+	switch conductor.Sub {
+	case 6:
+		conductor.SetStep(0, 6, 7, 7, 0.1, false, 5)
+		diagnosisType = 0
+	case 8:
+		conductor.SetStep(0, 13, 7, 7, 0.1, false, 5)
+		diagnosisType = 1
+	case 10:
+		conductor.SetStep(0, 15, 12, 12, 0.1, false, 5)
+		diagnosisType = 1
+	}
+
+	err := networkModem.Diagnose(diagnosisType)
+	if err != nil {
+		zap.S().Error("error occured during diagnosis, error: %v", err)
+		conductor.IsOk = false
+	}
+
+	conductor.IsOk = true
+}
+
+var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM,
+	diagnose}
 
 func ExecuteStep(step int) {
 	actions[step]()

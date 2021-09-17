@@ -2,17 +2,20 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 type DiagnosticProperties struct {
 	ConnInterface  bool
 	ModemReachable bool
 	UsbDriver      bool
+	UsbInterface   bool
 	ModemDriver    bool
 	PDPContext     bool
 	// This is how it was spelt in the original, typo?
@@ -20,6 +23,7 @@ type DiagnosticProperties struct {
 	SimReady        bool
 	ModemMode       bool
 	ModemApn        bool
+	Timestamp       time.Time
 }
 
 func (d *DiagnosticProperties) SetDefaults() {
@@ -430,6 +434,7 @@ func (m *Modem) Diagnose(diagnosisType int) error {
 		SimReady:        false,
 		ModemMode:       false,
 		ModemApn:        false,
+		UsbInterface:    false,
 	}
 
 	zap.S().Info("diagnostic is working...")
@@ -443,7 +448,89 @@ func (m *Modem) Diagnose(diagnosisType int) error {
 	zap.S().Info("[2] - does the USB interface exist?")
 	usbInterface, err := RunShellCommand("lsusb")
 	if err != nil {
-		return fmt.Errorf("error checking route information, error: %v", err)
+		return fmt.Errorf("error checking usb interface information, error: %v", err)
 	}
-	m.DiagnosticProperties.UsbDriver = strings.Contains(usbInterface, m.Vendor)
+	m.DiagnosticProperties.UsbInterface = strings.Contains(usbInterface, m.Vendor)
+
+	zap.S().Info("[3] - does the USB driver exist?")
+	usbDevices, err := RunShellCommand("usb-devices")
+	if err != nil {
+		return fmt.Errorf("error checking usb driver information, error: %v", err)
+	}
+	m.DiagnosticProperties.UsbDriver = strings.Count(usbDevices, "cdc_ether") >= 2
+
+	zap.S().Info("[4] - is modem reachable?")
+	response, err := RunModemManagerCommand("AT")
+	if err != nil {
+		return fmt.Errorf("error checking usb driver information, error: %v", err)
+	}
+	if strings.Contains(response, "OK") {
+		m.DiagnosticProperties.ModemReachable = true
+	}
+
+	zap.S().Info("[5] - is ECM PDP context active?")
+	response, err = RunModemManagerCommand(m.PDPStatusCommand)
+	if err != nil {
+		return fmt.Errorf("error checking ECM PDP context information, error: %v", err)
+	}
+	if strings.Contains(response, "1,1") {
+		m.DiagnosticProperties.PDPContext = true
+	}
+
+	zap.S().Info("[6] - is the network registered?")
+	err = m.CheckNetwork()
+	m.DiagnosticProperties.NetworkReqister = (err == nil)
+
+	zap.S().Info("[7] - is the APN ok?")
+	expectedApn := fmt.Sprintf("\"%s\"", Config.APN)
+	apn, err := RunModemManagerCommand("AT+CGDCONT?")
+	if err != nil {
+		return fmt.Errorf("unable to get apn from modem, err: %v", err)
+	}
+	m.DiagnosticProperties.ModemApn = strings.Contains(apn, expectedApn)
+
+	zap.S().Info("[8] - is the modem mode ok?")
+	mode, err := RunModemManagerCommand(m.ModeStatusCommand)
+	if err != nil {
+		return fmt.Errorf("unable to get modem mode from modem, err: %v", err)
+	}
+	m.DiagnosticProperties.ModemMode = strings.Contains(mode, m.EcmModeResponse)
+
+	zap.S().Info("[8] - is the SIM ready?")
+	simStatus, err := RunModemManagerCommand("AT+CPIN?")
+	if err != nil {
+		return fmt.Errorf("unable to get modem mode from modem, err: %v", err)
+	}
+	m.DiagnosticProperties.SimReady = strings.Contains(simStatus, "READY")
+
+	m.DiagnosticProperties.Timestamp = time.Now()
+
+	switch diagnosisType {
+	case 0:
+		zap.S().Info("creating diagnostic report called cm-diag_%s.yaml", m.DiagnosticProperties.Timestamp)
+		out, err := yaml.Marshal(m.DiagnosticProperties)
+		if err != nil {
+			return fmt.Errorf("error occured when saving diagnosis, error: %v", err)
+		}
+		os.WriteFile(fmt.Sprintf("cm-diag_%s.yaml", m.DiagnosticProperties.Timestamp), out, 0666)
+	case 1:
+		zap.S().Info("creating diagnostic report called cm-diag_repeated.yaml", m.DiagnosticProperties.Timestamp)
+		out, err := yaml.Marshal(m.DiagnosticProperties)
+		if err != nil {
+			return fmt.Errorf("error occured when saving diagnosis, error: %v", err)
+		}
+		os.WriteFile("cm-diag_repeated.yaml", out, 0666)
+	}
+
+	if config.DebugMode && config.VerboseMode {
+		zap.S().Info("")
+		zap.S().Info("=============================================================")
+		zap.S().Info("[?] Diagnostic Report")
+		zap.S().Info("---------------------------")
+		zap.S().Info("%v+", m.DiagnosticProperties)
+		zap.S().Info("=============================================================")
+		zap.S().Info("")
+	}
+
+	return nil
 }
