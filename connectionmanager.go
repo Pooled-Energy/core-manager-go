@@ -48,7 +48,7 @@ func identifySetup() {
 }
 
 func configureModem() {
-	conductor.SetStep(0, 1, 2, 15, 2, false, 20)
+	conductor.SetStep(0, 2, 14, 13, 1, false, 5)
 
 	err := networkModem.ConfigureModem()
 	if err != nil {
@@ -59,6 +59,19 @@ func configureModem() {
 
 	conductor.IsOk = true
 
+}
+
+func checkSimReady() {
+	conductor.SetStep(0, 14, 3, 13, 1, false, 5)
+
+	err := networkModem.checkSimReady()
+	if err != nil {
+		conductor.IsOk = false
+		zap.S().Error("error checking sim status, error: %v", err)
+		return
+	}
+
+	conductor.IsOk = true
 }
 
 var actions = [...]func(){organizer, identifySetup, configureModem}
