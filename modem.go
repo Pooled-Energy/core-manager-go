@@ -418,3 +418,32 @@ func parsePingOutput(output, header, end string) string {
 	endOfData := indexOfData + strings.Index(output[indexOfData:], end)
 	return output[indexOfData:endOfData]
 }
+
+func (m *Modem) Diagnose(diagnosisType int) error {
+	m.DiagnosticProperties = DiagnosticProperties{
+		ConnInterface:   false,
+		ModemReachable:  false,
+		UsbDriver:       false,
+		ModemDriver:     false,
+		PDPContext:      false,
+		NetworkReqister: false,
+		SimReady:        false,
+		ModemMode:       false,
+		ModemApn:        false,
+	}
+
+	zap.S().Info("diagnostic is working...")
+	zap.S().Info("[1] - does the connection interface exist?")
+	routeData, err := RunShellCommand("route -n")
+	if err != nil {
+		return fmt.Errorf("error checking route information, error: %v", err)
+	}
+	m.DiagnosticProperties.ConnInterface = strings.Contains(routeData, m.InterfaceName)
+
+	zap.S().Info("[2] - does the USB interface exist?")
+	usbInterface, err := RunShellCommand("lsusb")
+	if err != nil {
+		return fmt.Errorf("error checking route information, error: %v", err)
+	}
+	m.DiagnosticProperties.UsbDriver = strings.Contains(usbInterface, m.Vendor)
+}
