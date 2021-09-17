@@ -9,6 +9,15 @@ import (
 
 var lock sync.Mutex
 
+// Watch these, i have a feeling i might have screwed up visibility
+var networkModem Modem
+var conductor ModemConductor
+var config Configuration
+
+func init() {
+	networkModem.Initialize()
+}
+
 func main() {
 	logger, err := zap.NewProduction()
 	if err != nil {
