@@ -87,13 +87,26 @@ func checkNetwork() {
 	conductor.IsOk = true
 }
 
-var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork}
+func initiateECM() {
+	conductor.SetStep(0, 4, 5, 13, 0.1, false, 5)
+
+	err := networkModem.InitiateECM()
+	if err != nil {
+		conductor.IsOk = false
+		zap.S().Error("error initiating ecm, error: %v", err)
+		return
+	}
+
+	conductor.IsOk = true
+}
+
+var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM}
 
 func ExecuteStep(step int) {
 	actions[step]()
 }
 
-func ManageConnection() int {
+func ManageConnection() float32 {
 	ExecuteStep(conductor.Sub)
 	return conductor.Interval
 }

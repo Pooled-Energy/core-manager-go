@@ -159,9 +159,13 @@ func (m *Modem) ConfigureModem() error {
 	}
 
 	zap.S().Info("modem mode not set. ECM mode will be activated")
-	_, err = RunModemManagerCommand(m.EcmModeSetterCommand)
+	output, err := RunModemManagerCommand(m.EcmModeSetterCommand)
 	if err != nil {
 		return fmt.Errorf("an issue occured when setting ECM mode")
+	}
+
+	if !strings.Contains(output, "OK") {
+		return fmt.Errorf("error occured while setting mode configuration, output: %s", output)
 	}
 
 	zap.S().Info("ECM mode set, modem will reboot to apply changes")
@@ -315,6 +319,10 @@ func (m *Modem) CheckNetwork() error {
 		return fmt.Errorf("an error occured when checking network status, error: %v", err)
 	}
 
+	if !strings.Contains(output, "OK") {
+		return fmt.Errorf("modem error, output %s", output)
+	}
+
 	if !strings.Contains(output, "+CREG: 0,1") || !strings.Contains(output, "+CREG: 0,5") {
 		return fmt.Errorf("network registration failed, output %s", output)
 	}
@@ -322,4 +330,54 @@ func (m *Modem) CheckNetwork() error {
 	zap.S().Info("network is registered")
 
 	return nil
+}
+
+func (m *Modem) InitiateECM() error {
+	zap.S().Info("checking the ECM initialization...")
+	output, err := RunModemManagerCommand(m.PDPStatusCommand)
+	if err != nil {
+		return fmt.Errorf("an error occured when checking ecm status, error: %v", err)
+	}
+
+	if !strings.Contains(output, "OK") {
+		return fmt.Errorf("error occured when checking pdp status, output: %s", output)
+	}
+
+	if strings.Contains(output, "0,1") || strings.Contains(output, "1,1") {
+		zap.S().Info("ECM is already initiated")
+		time.Sleep(10 * time.Second)
+		return nil
+	}
+
+	zap.S().Info("ECM connection is initiating...")
+	output, err = RunModemManagerCommand(m.PDPActivateCommand)
+	if err != nil {
+		return fmt.Errorf("an error occured when initiating ecm connection, error: %v", err)
+	}
+
+	if !strings.Contains(output, "OK") {
+		return fmt.Errorf("ecm initiation failed, output: %s", output)
+	}
+
+	for i := 0; i < 60; i++ {
+		output, err := RunModemManagerCommand(m.PDPStatusCommand)
+		if err != nil {
+			return fmt.Errorf("an error occured when checking ecm status, error: %v", err)
+		}
+
+		if !strings.Contains(output, "OK") {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if strings.Contains(output, "0,1") || strings.Contains(output, "1,1") {
+			zap.S().Info("ECM is already initiated")
+			time.Sleep(10 * time.Second)
+			return nil
+		} else {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	return fmt.Errorf("ECM initiation timeout")
 }
