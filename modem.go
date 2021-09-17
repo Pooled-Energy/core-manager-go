@@ -291,3 +291,18 @@ func softModemReset(modem *Modem) error {
 
 	return nil
 }
+
+func (m *Modem) CheckSimReady() error {
+	zap.S().Info("checking the SIM is ready...")
+	output, err := RunModemManagerCommand("AT+CPIN?")
+	if err != nil {
+		return fmt.Errorf("an error occured when checking SIM status, error: %v", err)
+	}
+
+	if !strings.Contains(output, "CPIN: READY") {
+		return fmt.Errorf("SIM not ready")
+	}
+
+	zap.S().Info("SIM is ready!")
+	return nil
+}

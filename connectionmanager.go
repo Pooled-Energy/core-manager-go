@@ -64,7 +64,7 @@ func configureModem() {
 func checkSimReady() {
 	conductor.SetStep(0, 14, 3, 13, 1, false, 5)
 
-	err := networkModem.checkSimReady()
+	err := networkModem.CheckSimReady()
 	if err != nil {
 		conductor.IsOk = false
 		zap.S().Error("error checking sim status, error: %v", err)
