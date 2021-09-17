@@ -49,9 +49,19 @@ func identifySetup() {
 
 func configureModem() {
 	conductor.SetStep(0, 1, 2, 15, 2, false, 20)
+
+	err := networkModem.ConfigureModem()
+	if err != nil {
+		conductor.IsOk = false
+		zap.S().Error("error configuring modem, error: %v", err)
+		return
+	}
+
+	conductor.IsOk = true
+
 }
 
-var actions = [...]func(){organizer}
+var actions = [...]func(){organizer, identifySetup, configureModem}
 
 func ExecuteStep(step int) {
 	actions[step]()

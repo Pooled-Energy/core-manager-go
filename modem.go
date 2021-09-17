@@ -117,6 +117,54 @@ func (m *Modem) DetectModem() (string, error) {
 	return "", fmt.Errorf("no modem detected")
 }
 
-func (m *Modem) ConfigureApn() {
+func (m *Modem) ConfigureApn() error {
+	expectedApn := fmt.Sprintf("\"%s\"", Config.APN)
+	apn, err := RunModemManagerCommand("AT+CGDCONT?")
+	if err != nil {
+		return fmt.Errorf("unable to get apn from modem, err: %v", err)
+	}
 
+	if strings.Contains(apn, expectedApn) {
+		zap.S().Info("apn is up-to-date")
+	} else {
+		output, err := RunModemManagerCommand("AT+CGDCONT=1,\"IPV4V6\",\"" + config.APN + "\"")
+		if err != nil {
+			return fmt.Errorf("unable to update apn on modem, err: %v", err)
+		}
+		zap.S().Info("apn updated with %s", output)
+	}
+
+	return nil
+}
+
+func (m *Modem) ConfigureModem() error {
+	/*
+		forceReset := 0
+		zap.S().Info("modem configuration started")
+
+		err := m.ConfigureApn()
+		if err != nil {
+			return err
+		}
+
+		zap.S().Info("checking modem mode")
+		conn, err := dbus.ConnectSystemBus()
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		var result string
+		dbusObject := conn.Object("org.freedesktop.ModemManager1", "/org/freedesktop/ModemManager1/Modem/0")
+		dBusMethodCallResult := dbusObject.Call("org.freedesktop.ModemManager1.Modem.Command", 0, m.ModeStatusCommand, uint32(30)).Store(result)
+		if dBusMethodCallResult != nil {
+			return fmt.Errorf("unable to determine modem status mdoe, response: %s", result)
+		}
+
+		if strings.Contains(result, m.EcmModeResponse) {
+
+		}
+	*/
+
+	return nil
 }
