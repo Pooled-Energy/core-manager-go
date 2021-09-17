@@ -112,8 +112,16 @@ func checkInternet() {
 
 	err := networkModem.CheckInternet()
 	if err != nil {
-
+		zap.S().Error("error occured when checking internet, error: %v", err)
+		conductor.IsOk = false
 	}
+
+	if networkModem.IncidentFlag == true {
+		networkModem.MonitoringProperties.FixedIncident++
+		networkModem.IncidentFlag = false
+	}
+
+	conductor.IsOk = true
 }
 
 var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM}
