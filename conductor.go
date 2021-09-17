@@ -5,7 +5,7 @@ type ModemConductor struct {
 	Base     int
 	Success  int
 	Fail     int
-	Interval int
+	Interval float32
 	IsOk     bool
 	Retry    int
 	Counter  int
@@ -19,7 +19,7 @@ func (mc *ModemConductor) CounterTick() {
 	mc.Counter++
 }
 
-func (mc *ModemConductor) SetStep(sub int, base int, success int, fail int, interval int, isOk bool, retry int) {
+func (mc *ModemConductor) SetStep(sub int, base int, success int, fail int, interval float32, isOk bool, retry int) {
 	mc.Sub = sub
 	mc.Base = base
 	mc.Success = success
