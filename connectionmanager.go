@@ -1,6 +1,8 @@
 package main
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+)
 
 func organizer() {
 	if conductor.Base == 0 {
@@ -175,7 +177,15 @@ func resetUsbInterface() {
 }
 
 func resetModemSoftly() {
+	conductor.SetStep(0, 11, 1, 12, 1, false, 1)
 
+	err := networkModem.SoftModemReset()
+	if err != nil {
+		zap.S().Error("an issue occured when soft rebooting the modem, error: %v", err)
+		conductor.IsOk = false
+	}
+
+	conductor.IsOk = true
 }
 
 func resetmodemHardly() {

@@ -184,7 +184,7 @@ func (m *Modem) ConfigureModem() error {
 
 	if forceReset == 1 {
 		forceReset = 0
-		err := softModemReset(m)
+		err := m.SoftModemReset()
 		if err != nil {
 			return fmt.Errorf("an issue occured when configuring the modem, error: %v", err)
 		}
@@ -278,9 +278,9 @@ func checkModemTurnedOff(modem *Modem) error {
 	return fmt.Errorf("modem didn't turn off as expected")
 }
 
-func softModemReset(modem *Modem) error {
+func (m *Modem) SoftModemReset() error {
 	zap.S().Info("resetting modem softly")
-	output, err := RunModemManagerCommand(modem.RebootCommand)
+	output, err := RunModemManagerCommand(m.RebootCommand)
 	if err != nil {
 		return fmt.Errorf("unable to execute modem manager reboot command, error: %v", err)
 	}
@@ -289,12 +289,12 @@ func softModemReset(modem *Modem) error {
 		return fmt.Errorf("reboot command unable to reach modem, error: %v", err)
 	}
 
-	err = checkModemTurnedOff(modem)
+	err = checkModemTurnedOff(m)
 	if err != nil {
 		return err
 	}
 
-	err = checkModemStarted(modem)
+	err = checkModemStarted(m)
 	if err != nil {
 		return err
 	}
@@ -618,4 +618,9 @@ func (m *Modem) ResetUsbInterface() error {
 	zap.S().Info("usb interface reset")
 
 	return nil
+}
+
+// This should really be renamed
+func (m *Modem) ResetHardly() {
+
 }
