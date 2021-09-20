@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/gousb"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
@@ -584,6 +585,37 @@ func checkifModemInterfaceIsUp(modem *Modem) error {
 	if counter != 0 {
 		return fmt.Errorf("modem interface couldn't be detected")
 	}
+
+	return nil
+}
+
+func (m *Modem) ResetUsbInterface() error {
+	zap.S().Info("resetting usb interface...")
+	usbContext := gousb.NewContext()
+	defer usbContext.Close()
+
+	vendorId, err := strconv.Atoi(m.VendorId)
+	if err != nil {
+		return fmt.Errorf("issue converting vendor id, error %v", err)
+	}
+
+	productId, err := strconv.Atoi(m.ProductId)
+	if err != nil {
+		return fmt.Errorf("issue converting product id, error %v", err)
+	}
+
+	device, err := usbContext.OpenDeviceWithVIDPID(gousb.ID(vendorId), gousb.ID(productId))
+	if err != nil {
+		return fmt.Errorf("issue accessing usb device, error: %v", err)
+	}
+	defer device.Close()
+
+	err = device.Reset()
+	if err != nil {
+		return fmt.Errorf("error resetting usb interface, error: %v", err)
+	}
+
+	zap.S().Info("usb interface reset")
 
 	return nil
 }

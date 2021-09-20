@@ -163,7 +163,15 @@ func resetConnectionInterface() {
 }
 
 func resetUsbInterface() {
-	// TODO: Implement this
+	conductor.SetStep(0, 9, 10, 11, 1, false, 2)
+
+	err := networkModem.ResetUsbInterface()
+	if err != nil {
+		zap.S().Error("error occured during usb device reset, error: %v", err)
+		conductor.IsOk = false
+	}
+
+	conductor.IsOk = true
 }
 
 var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM,
