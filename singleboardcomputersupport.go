@@ -14,7 +14,7 @@ type SBC struct {
 	DisablePin int
 }
 
-func (sbc *SBC) GPIOInit(pin int) {
+func (sbc *SBC) GPIOPinInit(pin int) {
 	pinName := "gpio" + string(pin)
 
 	_, err := RunShellCommand(fmt.Sprintf("ls /sys/class/gpio/%d", pinName))
@@ -36,4 +36,12 @@ func (sbc *SBC) GPIOInit(pin int) {
 
 	time.Sleep(1 * time.Second)
 
+}
+
+func (sbc *SBC) GPIOPinUnexport() {
+	command := fmt.Sprintf("echo %d > /sys/class/gpio/unexport", sbc.DisablePin)
+	_, err := RunShellCommand(command)
+	if err != nil {
+		zap.S().Error("error unexporting GPIO pin, error: %v", err)
+	}
 }
