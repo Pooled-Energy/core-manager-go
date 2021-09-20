@@ -65,3 +65,21 @@ func (sbc *SBC) ModemPowerDisable() {
 		zap.S().Error("error disabling modem power, error: %v", err)
 	}
 }
+
+// Should also work on Yocto?
+var raspberryPiRaspbian = SBC{
+	Name:       "Raspberry Pi 4",
+	OS:         "Raspberry Pi OS (Raspbian)",
+	DisablePin: 26,
+}
+
+var jetsonNanoUbtuntu = SBC{
+	Name:       "Nvidia Jetson Nano",
+	OS:         "Ubuntu",
+	DisablePin: 12,
+}
+
+var supportedSBCs = map[string]SBC{
+	"rpi4":               raspberryPiRaspbian,
+	"jetson_nano_ubuntu": jetsonNanoUbtuntu,
+}
