@@ -45,3 +45,23 @@ func (sbc *SBC) GPIOPinUnexport() {
 		zap.S().Error("error unexporting GPIO pin, error: %v", err)
 	}
 }
+
+func (sbc *SBC) ModemPowerEnable() {
+	sbc.GPIOPinInit(sbc.DisablePin)
+
+	command := fmt.Sprintf("echo 0 > /sys/class/gpio/gpio%d/value", sbc.DisablePin)
+	_, err := RunShellCommand(command)
+	if err != nil {
+		zap.S().Error("error enabling modem power, error: %v", err)
+	}
+}
+
+func (sbc *SBC) ModemPowerDisable() {
+	sbc.GPIOPinInit(sbc.DisablePin)
+
+	command := fmt.Sprintf("echo 1 > /sys/class/gpio/gpio%d/value", sbc.DisablePin)
+	_, err := RunShellCommand(command)
+	if err != nil {
+		zap.S().Error("error disabling modem power, error: %v", err)
+	}
+}
