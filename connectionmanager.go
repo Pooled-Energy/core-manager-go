@@ -174,8 +174,32 @@ func resetUsbInterface() {
 	conductor.IsOk = true
 }
 
-var actions = [...]func(){organizer, identifySetup, configureModem, checkSimReady, checkNetwork, initiateECM,
-	diagnose, resetConnectionInterface, resetUsbInterface}
+func resetModemSoftly() {
+
+}
+
+func resetmodemHardly() {
+
+}
+
+var actions = [...]func(){
+	organizer,
+	identifySetup,
+	configureModem,
+	checkNetwork,
+	initiateECM,
+	checkInternet,
+	diagnose,
+	resetConnectionInterface,
+	checkInternet,
+	resetUsbInterface,
+	checkInternet,
+	resetModemSoftly,
+	resetmodemHardly,
+	diagnose,
+	checkSimReady,
+	diagnose,
+}
 
 func ExecuteStep(step int) {
 	actions[step]()
