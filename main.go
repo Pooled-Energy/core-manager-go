@@ -31,7 +31,7 @@ func main() {
 }
 
 func manageConnections() {
-	interval := 0
+	var interval float32
 	for {
 		lock.Lock()
 		interval = ManageConnection()
