@@ -620,7 +620,16 @@ func (m *Modem) ResetUsbInterface() error {
 	return nil
 }
 
-// This should really be renamed
-func (m *Modem) ResetHardly() {
+// TODO: revisit this. I think we can refactor it since the idea seems to be that
+// we try and activate pins without throwing errors, so just recording it. That's how
+// it was originally designed.
+func (m *Modem) HardModemReset() error {
+	zap.S().Info("physically rebooting the hardware...")
+	sbc := supportedSBCs[config.SBC]
+	sbc.ModemPowerDisable()
+	time.Sleep(2 * time.Second)
+	sbc.ModemPowerEnable()
 
+	zap.S().Info("hard reset complete")
+	return nil
 }

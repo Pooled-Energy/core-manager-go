@@ -188,8 +188,16 @@ func resetModemSoftly() {
 	conductor.IsOk = true
 }
 
-func resetmodemHardly() {
+func resetModemHardly() {
+	conductor.SetStep(0, 12, 1, 1, 1, false, 1)
 
+	err := networkModem.HardModemReset()
+	if err != nil {
+		zap.S().Error("an issue occured when soft rebooting the modem, error: %v", err)
+		conductor.IsOk = false
+	}
+
+	conductor.IsOk = true
 }
 
 var actions = [...]func(){
@@ -205,7 +213,7 @@ var actions = [...]func(){
 	resetUsbInterface,
 	checkInternet,
 	resetModemSoftly,
-	resetmodemHardly,
+	resetModemHardly,
 	diagnose,
 	checkSimReady,
 	diagnose,
