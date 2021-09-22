@@ -94,6 +94,7 @@ func LoadConfiguration() *Configuration {
 	conf.ConfigChanged = true
 	oldConfig.UpdateConfig(&conf)
 	Config.UpdateConfig(&conf)
+	return &conf
 }
 
 func getRequests() []string {
