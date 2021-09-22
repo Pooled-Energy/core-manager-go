@@ -2,8 +2,11 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
+	"sort"
 
+	"github.com/imdario/mergo"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
@@ -68,7 +71,7 @@ func (c *Configuration) UpdateConfig(newConfig *Configuration) {
 var Config = Configuration{}
 var oldConfig = Configuration{}
 
-func LoadConfiguration() {
+func LoadConfiguration() *Configuration {
 	conf := Configuration{}
 	if _, err := os.Stat("config.yaml"); err != nil {
 		zap.S().Error("config file doesn't exist, using defaults")
@@ -91,4 +94,65 @@ func LoadConfiguration() {
 	conf.ConfigChanged = true
 	oldConfig.UpdateConfig(&conf)
 	Config.UpdateConfig(&conf)
+}
+
+func getRequests() []string {
+	paths, err := filepath.Glob("/config_request*.yaml")
+	if err != nil {
+		zap.S().Error("there was an issue loading config requests, error: %v", err)
+		return []string{}
+	}
+
+	sort.Strings(paths)
+
+	return paths
+}
+
+// The idea here is we load all the config files and then we apply them directly to the configuration,
+// saving it if things have changed.
+func Configure() {
+	// First we load everything up, so we can have something to compare against
+	LoadConfiguration()
+
+	// Load all requested changes
+	configureRequests := getRequests()
+
+	for _, configurationRequest := range configureRequests {
+		update := Configuration{}
+		configFileContent, err := os.ReadFile(configurationRequest)
+		// We might want to remove this config, though I'm not sure how to go about this at the moment
+		if err != nil {
+			zap.S().Error("an issue occured when reading %s, returning defaults. error: %v", configurationRequest, err)
+			continue
+		}
+
+		yaml.Unmarshal(configFileContent, &update)
+
+		if Config.APN != update.APN {
+			Config.ModemConfigRequired = true
+		}
+
+		// TODO: Actually implement the ability to change logging style with config files
+
+		if err := mergo.Merge(&Config, configFileContent, mergo.WithOverride); err != nil {
+			zap.S().Error("an issue occured when updating config with %s. error: %v", configurationRequest, err)
+		}
+	}
+
+	if !reflect.DeepEqual(Config, oldConfig) {
+		systemConfig, err := yaml.Marshal(&Config)
+		if err != nil {
+			zap.S().Error("Error parsing configuration, err: %v", err)
+		}
+
+		os.WriteFile("config.yaml", systemConfig, 0644)
+	}
+
+	if Config.ModemConfigRequired {
+		conductor.SetStep(0, 2, 14, 13, 1, false, 5)
+		Config.ModemConfigRequired = false
+	}
+
+	Config.ConfigChanged = false
+
 }
